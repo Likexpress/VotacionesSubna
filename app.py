@@ -17,6 +17,9 @@ from datetime import datetime, timedelta
 from itsdangerous import URLSafeTimedSerializer
 import unicodedata
 import re
+import pandas as pd
+from flask import request, jsonify
+
 
 
 # ---------------------------
@@ -233,6 +236,15 @@ class NumeroTemporal(db.Model):
     numero = db.Column(db.String(50), unique=True, nullable=False)
     token = db.Column(db.Text, nullable=True)  # <--- Este campo debe existir
     fecha = db.Column(db.DateTime, default=datetime.utcnow)
+
+class WhatsappMensajeProcesado(db.Model):
+    __tablename__ = "whatsapp_mensajes_procesados"
+
+    id = db.Column(db.Integer, primary_key=True)
+    message_id = db.Column(db.String(120), unique=True, nullable=False, index=True)
+    numero = db.Column(db.String(50), nullable=True)
+    fecha = db.Column(db.DateTime, default=datetime.utcnow)
+
 # ---------------------------
 # Bloqueo WHatsapp
 # ---------------------------
@@ -293,6 +305,19 @@ def whatsapp_webhook():
 
         # Tomamos el primer mensaje
         msg = messages[0] or {}
+        message_id = (msg.get("id") or "").strip()
+        if message_id:
+            ya = WhatsappMensajeProcesado.query.filter_by(message_id=message_id).first()
+            if ya:
+                print(f"ℹ️ Mensaje duplicado ignorado: {message_id}")
+                return "ok", 200
+
+            db.session.add(WhatsappMensajeProcesado(
+                message_id=message_id,
+                numero=numero_completo
+            ))
+            db.session.commit()
+
 
         # Número del remitente (MSISDN, a veces sin '+')
         numero_raw = msg.get('from') or msg.get('wa_id') or ""
@@ -385,12 +410,23 @@ def whatsapp_webhook():
             return "ok", 200
 
         # Dominios coherentes
-        AZURE_DOMAIN = os.environ.get(
-            "AZURE_DOMAIN",
-            request.host_url.rstrip('/')
-        ).rstrip('/')
+# ====== Ya autorizado: generar token NUEVO y enviar enlace ======
+        AZURE_DOMAIN = os.environ.get("AZURE_DOMAIN", request.host_url.rstrip('/')).rstrip('/')
 
-        link = f"{AZURE_DOMAIN}/votar?token={autorizado.token}"
+        token_data = {
+            "numero": numero_completo,
+            "dominio": AZURE_DOMAIN
+        }
+        token_nuevo = serializer.dumps(token_data)
+
+        # Guardar el token nuevo (reemplaza el viejo)
+        autorizado.token = token_nuevo
+        autorizado.fecha = datetime.utcnow()
+        db.session.commit()
+
+        link = f"{AZURE_DOMAIN}/votar?token={token_nuevo}"
+        print(f"🔗 Enlace nuevo generado: {link}")
+
         print(f"🔗 Enlace recuperado: {link}")
 
         mensaje = (
@@ -477,17 +513,20 @@ def generar_link():
         token = serializer.dumps(token_data)
 
 
+
         # Verificar si ya está registrado
         temporal = NumeroTemporal.query.filter_by(numero=numero_completo).first()
+
         if not temporal:
             temporal = NumeroTemporal(numero=numero_completo, token=token)
             db.session.add(temporal)
-            db.session.commit()
         else:
-            token = temporal.token  # ✅ Reutilizar el token existente
-
+            # IMPORTANTE: reemplazar el token viejo por uno nuevo
+            temporal.token = token
+            temporal.fecha = datetime.utcnow()
 
         db.session.commit()
+
 
         # Redireccionar al WhatsApp con el mensaje prellenado
         return redirect("https://wa.me/59172902813?text=Hola,%20deseo%20participar%20en%20este%20proceso%20democrático%20porque%20creo%20en%20el%20cambio.%20Quiero%20ejercer%20mi%20derecho%20a%20votar%20de%20manera%20libre%20y%20responsable%20por%20el%20futuro%20de%20Bolivia.")
@@ -510,6 +549,11 @@ def votar():
   
         data = serializer.loads(token, max_age=600)  
         numero = limpiar_numero(data.get("numero"))
+        registro = NumeroTemporal.query.filter_by(numero=numero, token=token).first()
+        if not registro:
+            enviar_mensaje_whatsapp(numero, "Este enlace ya fue utilizado o es inválido. Solicita uno nuevo.")
+            return "Este enlace ya fue utilizado, es inválido o ha intentado manipular el proceso."
+
 
 
 
@@ -720,37 +764,64 @@ def api_recintos():
 
 @app.route("/api/candidatos")
 def api_candidatos():
-    # Validación de dominio (igual que /api/recintos)
-    referer = request.headers.get("Referer", "")
-    dominio_esperado = os.environ.get(
-        "AZURE_DOMAIN",
-        "votacionprimarias2025-g7ebaphpgrcucgbr.brazilsouth-01.azurewebsites.net"
-    )
+    id_municipio = request.args.get("id_municipio")
 
-    # Si no hay referer, no bloquees (muchos navegadores lo omiten)
-    if referer and (dominio_esperado not in referer):
-        print(f"Acceso denegado a /api/candidatos desde Referer: {referer}")
-        return "Acceso no autorizado", 403
-
-
-    asegurar_candidatos_cargados()
-    if _CANDIDATOS_CACHE["error"]:
-        print("❌ Error candidatos CSV:", _CANDIDATOS_CACHE["error"])
-        return jsonify({"error": _CANDIDATOS_CACHE["error"]}), 500
-
-    id_municipio = (request.args.get("id_municipio") or "").strip()
     if not id_municipio:
         return jsonify([])
 
-    candidatos = _CANDIDATOS_CACHE["by_id_municipio"].get(id_municipio, [])
+    # 1️⃣ BUSCAR el municipio real en RecintosParaPrimaria.csv
+    archivo_recintos = os.path.join(
+        os.path.dirname(__file__),
+        "privado",
+        "RecintosParaPrimaria.csv"
+    )
 
-    # Filtrar solo cargo Alcalde (por si el CSV trae otros cargos)
-    out = [c for c in candidatos if (c.get("cargo") or "").strip().lower() == "alcalde"]
+    departamento = None
+    provincia = None
+    municipio = None
 
-    # Opcional: ordenar por nombre
-    out.sort(key=lambda x: (x.get("nombre_completo") or "").lower())
+    with open(archivo_recintos, encoding="utf-8") as f:
+        reader = csv.DictReader(f)
+        for fila in reader:
+            if fila["id_municipio"] == id_municipio:
+                departamento = fila["nombre_departamento"].strip().lower()
+                provincia = fila["nombre_provincia"].strip().lower()
+                municipio = fila["nombre_municipio"].strip().lower()
+                break
 
-    return jsonify(out)
+    # Si no se encontró el municipio
+    if not municipio:
+        return jsonify([])
+
+    # 2️⃣ BUSCAR candidatos por departamento + provincia + municipio
+    archivo_candidatos = os.path.join(
+        os.path.dirname(__file__),
+        "privado",
+        "CandidatosPorMunicipio.csv"
+    )
+
+    candidatos = []
+
+    with open(archivo_candidatos, encoding="utf-8") as f:
+        reader = csv.DictReader(f)
+        for fila in reader:
+            if (
+                fila["departamento"].strip().lower() == departamento and
+                fila["provincia"].strip().lower() == provincia and
+                fila["municipio"].strip().lower() == municipio and
+                fila["cargo"].strip().lower() == "alcalde"
+            ):
+                candidatos.append({
+                    "id_nombre_completo": fila["id_nombre_completo"],
+                    "nombre_completo": fila["nombre_completo"],
+                    "organizacion_politica": fila["organizacion_politica"],
+                    "id_organizacion_politica": fila["id_organizacion_politica"],
+                    "id_cargo": fila["id_cargo"],
+                    "cargo": fila["cargo"]
+                })
+
+    return jsonify(candidatos)
+
 
 # ---------------------------
 # Página de preguntas frecuentes
