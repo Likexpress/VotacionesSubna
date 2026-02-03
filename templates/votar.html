@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Elecciones Ciudadanas 2025</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/jquery@3.6.0/dist/jquery.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+  <style>
+    body {
+      background-color: #f4f6f9;
+      font-family: 'Segoe UI', sans-serif;
+    }
+    .form-wrapper {
+      max-width: 950px;
+      margin: auto;
+      padding: 30px 20px;
+    }
+    .card {
+      border-radius: 12px;
+      box-shadow: 0 0 15px rgba(0, 0, 0, 0.08);
+      border-top: 8px solid #d52b1e;
+      border-bottom: 8px solid #007a33;
+      padding: 30px;
+      background-color: #fff;
+    }
+    h2 {
+      font-weight: bold;
+      color: #d52b1e;
+    }
+    .logo {
+      display: block;
+      margin: 0 auto 20px auto;
+      max-height: 90px;
+    }
+    .btn-success {
+      background-color: #007a33;
+      border: none;
+    }
+    .btn-success:hover {
+      background-color: #005e28;
+    }
+    .form-label {
+      font-weight: 600;
+    }
+    .section-title {
+      margin-top: 30px;
+      font-size: 1.2rem;
+      color: #d52b1e;
+      border-left: 5px solid #ffcc00;
+      padding-left: 10px;
+    }
+    .hidden {
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="form-wrapper text-center">
+    <img src="{{ url_for('static', filename='img/logo.png') }}" alt="Logo del proyecto" class="img-fluid">
+
+    <h2>Votaciones Primarias Bolivia 2025</h2>
+    <p class="text-muted">Participa en las votaciones primarias y elige al candidato de oposición que nos representará en las elecciones 2025.</p>
+
+    <div class="card text-start">
+      <form method="post" action="/enviar_voto" class="needs-validation" novalidate>
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="latitud" id="latitud">
+        <input type="hidden" name="longitud" id="longitud">
+
+        <!-- Género -->
+        <div class="mb-3">
+          <label class="form-label">Género</label>
+          <select name="genero" class="form-select" required>
+            <option value="">Selecciona tu género</option>
+            <option value="Hombre">Hombre</option>
+            <option value="Mujer">Mujer</option>
+          </select>
+        </div>
+
+        <!-- Fecha de nacimiento -->
+        <div class="mb-3">
+          <label class="form-label">Fecha de nacimiento</label>
+          <div class="row g-2">
+            <div class="col">
+              <select class="form-select" name="dia_nacimiento" required>
+                <option value="">Día</option>
+                {% for d in range(1, 32) %}
+                  <option value="{{ d }}">{{ d }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col">
+              <select class="form-select" name="mes_nacimiento" required>
+                <option value="">Mes</option>
+                {% for mes in ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'] %}
+                  <option value="{{ loop.index }}">{{ mes }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col">
+              <select class="form-select" name="anio_nacimiento" required>
+                <option value="">Año</option>
+                {% for a in range(1920, 2010) %}
+                  <option value="{{ a }}">{{ a }}</option>
+                {% endfor %}
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <!-- Ubicación -->
+        <div class="section-title">Datos de Ubicación</div>
+        <div class="mb-3">
+          <label class="form-label">País</label>
+          <select id="pais" name="pais" class="form-select" required></select>
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Departamento</label>
+          <select id="departamento" name="departamento" class="form-select" required></select>
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Provincia</label>
+          <select id="provincia" name="provincia" class="form-select" required></select>
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Municipio</label>
+          <select id="municipio" name="id_municipio" class="form-select" required></select>
+          <input type="hidden" name="municipio_nombre" id="municipio_nombre">
+
+
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Recinto</label>
+          <select id="recinto" name="recinto" class="form-select" required></select>
+        </div>
+
+        <!-- Preguntas de intención de voto -->
+        <!-- === CSS específico (puede ir en <style> o tu CSS global) === -->
+        <style>
+          .candidate-grid { display:grid; gap:12px }
+          @media (min-width:768px){ .candidate-grid{ grid-template-columns:1fr 1fr } }
+          .candidate-card{
+            position:relative; border:1.5px solid #e3e6ea; border-radius:12px;
+            padding:14px 14px 14px 52px; background:#fff;
+            box-shadow:0 1px 3px rgba(0,0,0,.04); cursor:pointer; min-height:88px
+          }
+          .candidate-card:hover{ border-color:#cbd3da }
+          .candidate-card.selected{ border-color:#0d6efd; box-shadow:0 0 0 3px rgba(13,110,253,.15) }
+          .candidate-radio{ position:absolute; left:14px; top:50%; transform:translateY(-50%); width:22px; height:22px }
+          .party{ font-weight:700; font-size:.95rem; letter-spacing:.2px }
+          .party.pdc{ color:#007a33 }     /* verde */
+          .party.libre{ color:#d52b1e }   /* rojo  */
+          /* Opciones no partidarias */
+          .party.blanco{ color:#6c757d }  /* gris  */
+          .party.nulo{ color:#343a40 }    /* gris oscuro */
+          .party.indeciso{ color:#b08900 }/* dorado/aviso */
+          .party.novota{ color:#0b5ed7 }  /* azul info */
+          .pres{ margin:2px 0 0; font-weight:700 }
+          .vice{ margin:0; color:#6c757d; font-size:.92rem }
+          .note{ font-size:.9rem; color:#6c757d }
+        </style>
+
+        <!-- === Decisión Electoral (tarjetas con colores) === -->
+        <div class="section-title">Decisión Electoral</div>
+        <div class="mb-2">
+          <label class="form-label">
+            ¿Por quién votarás el <strong>domingo 19 de octubre</strong> en esta
+            <strong>segunda vuelta</strong> de elecciones presidenciales?
+          </label>
+          <div class="note">Se vota por el <strong>Presidente</strong>. Se muestra el binomio para referencia.</div>
+        </div>
+
+        <div class="section-title">Candidato a Alcalde</div>
+
+<div class="mb-3">
+  <label class="form-label">Selecciona tu candidato</label>
+  <select id="candidato" name="candidato" class="form-select" required>
+    <option value="">Selecciona un municipio primero</option>
+  </select>
+</div>
+
+
+
+        <div class="section-title">Compromiso con la Democracia</div>
+        <div class="mb-3">
+          <label class="form-label">¿Estás dispuesto(a) a colaborar en el control del voto con el proyecto <strong>CUIDEMOS EL VOTO</strong>?</label>
+          <select id="pregunta3" name="pregunta3" class="form-select" required onchange="mostrarCampoCI(this)">
+            <option value="">Selecciona una opción</option>
+            <option value="Sí">Sí</option>
+            <option value="No">No</option>
+          </select>
+        </div>
+        <!-- Campo CI (condicional) -->
+        <div class="mb-3 hidden" id="campo_ci">
+          <label for="ci" class="form-label">Carnet de Identidad</label>
+          <input type="number" id="ci" name="ci" class="form-control">
+        </div>
+
+        <!-- Botón de envío -->
+        <div class="d-grid">
+          <button type="submit" class="btn btn-success btn-lg">Enviar Voto</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+<script>
+  let recintosData = [];
+
+  function resetSelect2(selector, texto) {
+  const $el = $(selector);
+
+  // Si Select2 está activo, lo apagamos
+  if ($el.hasClass('select2-hidden-accessible')) {
+    $el.select2('destroy');
+  }
+
+  // Borramos opciones y ponemos 1 opción por defecto
+  $el.empty().append(new Option(texto, ''));
+
+  // Encendemos Select2 de nuevo
+  $el.select2({ width: '100%' });
+
+  // Dejamos el valor vacío
+  $el.val('').trigger('change');
+}
+
+
+  async function cargarDatos() {
+    const res = await fetch("/api/recintos");
+    recintosData = await res.json();
+
+    const paises = [...new Set(recintosData.map(r => r.nombre_pais))];
+    const $pais = $('#pais');
+    $pais.empty().append(new Option('Selecciona país', ''));
+
+    paises.forEach(p => $pais.append(new Option(p, p)));
+
+    // Default Bolivia si existe
+    if (paises.includes('Bolivia')) {
+      $pais.val('Bolivia').trigger('change');
+    }
+  }
+
+  function actualizarDepartamentos() {
+    const pais = $('#pais').val();
+
+    const departamentos = [...new Set(
+      recintosData
+        .filter(r => r.nombre_pais === pais)
+        .map(r => r.nombre_departamento)
+    )];
+
+    const $dep = $('#departamento');
+    $dep.empty().append(new Option('Selecciona departamento', ''));
+    departamentos.forEach(dep => $dep.append(new Option(dep, dep)));
+    $dep.trigger('change');
+  }
+
+  function actualizarProvincias() {
+    const pais = $('#pais').val();
+    const departamento = $('#departamento').val();
+
+    const provincias = [...new Set(
+      recintosData
+        .filter(r => r.nombre_pais === pais && r.nombre_departamento === departamento)
+        .map(r => r.nombre_provincia)
+    )];
+
+    const $prov = $('#provincia');
+    $prov.empty().append(new Option('Selecciona provincia', ''));
+    provincias.forEach(prov => $prov.append(new Option(prov, prov)));
+    $prov.trigger('change');
+  }
+
+function actualizarMunicipios() {
+  const pais = $('#pais').val();
+  const departamento = $('#departamento').val();
+  const provincia = $('#provincia').val();
+
+  const filas = recintosData.filter(r =>
+    r.nombre_pais === pais &&
+    r.nombre_departamento === departamento &&
+    r.nombre_provincia === provincia
+  );
+
+  // Creamos lista única de municipios (id -> nombre)
+  const mapa = new Map();
+  filas.forEach(r => {
+    const id = String(r.id_municipio || '');
+    const nombre = r.nombre_municipio;
+    if (id && nombre && !mapa.has(id)) {
+      mapa.set(id, nombre);
+    }
+  });
+
+  const $mun = $('#municipio');
+
+  // 1) Apagar Select2 del municipio (para que no se quede pegado)
+  if ($mun.hasClass('select2-hidden-accessible')) {
+    $mun.select2('destroy');
+  }
+
+  // 2) Vaciar y cargar municipios nuevos
+  $mun.empty().append(new Option('Selecciona municipio', ''));
+  for (const [id, nombre] of mapa.entries()) {
+    $mun.append(new Option(nombre, id));
+  }
+
+  // 3) Encender Select2 de nuevo
+  $mun.select2({ width: '100%' });
+
+  // 4) Forzar valor vacío
+  $mun.val('').trigger('change');
+
+  // 5) Resetear recintos y candidatos (porque dependen del municipio)
+  resetSelect2('#recinto', 'Selecciona recinto');
+  resetSelect2('#candidato', 'Selecciona un municipio primero');
+
+  setMunicipioNombreHidden();
+}
+
+  function setMunicipioNombreHidden() {
+    const select = document.getElementById('municipio');
+    const hidden = document.getElementById('municipio_nombre');
+
+    if (!select || !hidden) return;
+
+    const selectedOption = select.options[select.selectedIndex];
+    hidden.value = selectedOption ? selectedOption.text : '';
+  }
+
+  function actualizarRecintos() {
+    const pais = $('#pais').val();
+    const departamento = $('#departamento').val();
+    const provincia = $('#provincia').val();
+    const id_municipio = $('#municipio').val();
+    console.log("ID municipio enviado a /api/candidatos:", id_municipio);
+
+
+    const recintos = [...new Set(
+      recintosData
+        .filter(r =>
+          r.nombre_pais === pais &&
+          r.nombre_departamento === departamento &&
+          r.nombre_provincia === provincia &&
+          String(r.id_municipio) === String(id_municipio)
+        )
+        .map(r => r.nombre_recinto)
+    )];
+
+    const $rec = $('#recinto');
+    $rec.empty().append(new Option('Selecciona recinto', ''));
+    recintos.forEach(r => $rec.append(new Option(r, r)));
+    $rec.trigger('change');
+  }
+
+async function cargarCandidatosPorMunicipio() {
+  const id_municipio = $('#municipio').val();
+  const $cand = $('#candidato');
+
+  // 0) Si Select2 ya estaba activo, lo destruimos (para que no se quede "pegado")
+  if ($cand.hasClass("select2-hidden-accessible")) {
+    $cand.select2('destroy');
+  }
+
+  // 1) Borramos TODAS las opciones y también reseteamos el valor seleccionado
+  $cand.empty().val(null);
+
+  // 2) Caso: aún no hay municipio seleccionado
+  if (!id_municipio) {
+    $cand.append(new Option('Selecciona un municipio primero', ''));
+    // Reactivar Select2
+    $cand.select2({ width: '100%' });
+    return;
+  }
+
+  try {
+    // 3) Pedimos a tu backend los candidatos del municipio
+    const dep = $('#departamento').val();
+    const prov = $('#provincia').val();
+
+    const url = `/api/candidatos?id_municipio=${encodeURIComponent(id_municipio)}&departamento=${encodeURIComponent(dep)}&provincia=${encodeURIComponent(prov)}`;
+
+    const res = await fetch(url, { cache: "no-store" }); // evita cache del navegador
+    const data = await res.json();
+
+    // 4) Primer option (placeholder)
+    $cand.append(new Option('Selecciona tu candidato', ''));
+
+    // 5) Si no hay datos
+    if (!Array.isArray(data) || data.length === 0) {
+      $cand.append(new Option('No hay candidatos para este municipio', ''));
+    } else {
+      // 6) Cargamos opciones nuevas
+      data.forEach(c => {
+        const value = c.id_nombre_completo || c.nombre_completo;
+        const label = `${c.nombre_completo} — ${c.organizacion_politica}`;
+        $cand.append(new Option(label, value));
+      });
+    }
+
+  } catch (e) {
+    console.error(e);
+    $cand.append(new Option('Error cargando candidatos', ''));
+  }
+
+  // 7) Volvemos a activar Select2 y obligamos a que se refresque
+  $cand.select2({ width: '100%' });
+
+  // 8) Muy importante: forzar que el select "empiece limpio"
+  $cand.val('').trigger('change.select2');
+}
+
+  function mostrarCampoCI(select) {
+    const ciDiv = document.getElementById('campo_ci');
+    const ciInput = document.getElementById('ci');
+    if (select.value === 'Sí') {
+      ciDiv.classList.remove('hidden');
+      ciInput.required = true;
+    } else {
+      ciDiv.classList.add('hidden');
+      ciInput.required = false;
+    }
+  }
+
+  $(document).ready(async () => {
+    // Select2
+    $('#pais').select2();
+    $('#departamento').select2();
+    $('#provincia').select2();
+    $('#municipio').select2();
+    $('#recinto').select2();
+    $('#candidato').select2({ width: '100%' });
+
+
+
+    // Eventos encadenados
+    $('#pais').on('change', actualizarDepartamentos);
+    $('#departamento').on('change', actualizarProvincias);
+    $('#provincia').on('change', actualizarMunicipios);
+
+    $('#municipio').on('change select2:select', () => {
+      setMunicipioNombreHidden();
+      actualizarRecintos();
+      cargarCandidatosPorMunicipio();
+    });
+
+
+
+
+    await cargarDatos();
+  });
+
+  // Geolocalización al cargar
+  window.onload = function () {
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        function (pos) {
+          document.getElementById('latitud').value = pos.coords.latitude;
+          document.getElementById('longitud').value = pos.coords.longitude;
+        },
+        function (error) {
+          console.warn("No se pudo obtener la ubicación: " + error.message);
+        },
+        { timeout: 10000 }
+      );
+    } else {
+      console.warn("Geolocalización no soportada.");
+    }
+  };
+
+  // Evitar múltiples envíos del formulario
+  document.querySelector('form').addEventListener('submit', function () {
+    const boton = this.querySelector('button[type="submit"]');
+    boton.disabled = true;
+    boton.innerText = 'Enviando...';
+  });
+</script>
+</body>
+</html>

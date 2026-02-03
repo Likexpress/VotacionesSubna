@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Certificado de Participación</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <style>
+    body {
+      background-color: #f4f6f9;
+      padding: 15px;
+      font-family: 'Georgia', serif;
+    }
+
+    .cert-container {
+      max-width: 850px;
+      margin: auto;
+      background-color: #fff;
+      border: 10px solid #198754;
+      padding: 30px 20px;
+      border-radius: 12px;
+      position: relative;
+      box-shadow: 0 0 25px rgba(0,0,0,0.1);
+    }
+
+    .bandera {
+      height: 12px;
+      display: flex;
+      margin-bottom: 20px;
+    }
+    .rojo { background-color: #d32f2f; flex: 1; }
+    .amarillo { background-color: #fbc02d; flex: 1; }
+    .verde { background-color: #388e3c; flex: 1; }
+
+    .encabezado-logo {
+      text-align: center;
+      margin-bottom: 20px;
+    }
+
+    .encabezado-logo img {
+      width: 90px;
+      opacity: 0.9;
+    }
+
+    .cert-title {
+      font-size: 2rem;
+      font-weight: bold;
+      text-transform: uppercase;
+      color: #198754;
+      text-align: center;
+      margin-bottom: 10px;
+    }
+
+    .cert-subtitle {
+      text-align: center;
+      font-size: 1rem;
+      margin-bottom: 20px;
+      color: #444;
+    }
+
+    .cert-body {
+      font-size: 1rem;
+      color: #222;
+      line-height: 1.6;
+      text-align: justify;
+      margin: 0 10px;
+    }
+
+    .cert-footer {
+      text-align: right;
+      margin-top: 30px;
+      font-style: italic;
+      color: #555;
+    }
+
+    .seal {
+      position: absolute;
+      bottom: 20px;
+      left: 20px;
+      opacity: 0.06;
+      width: 130px;
+    }
+
+    .share-section {
+      margin-bottom: 20px;
+      text-align: center;
+    }
+
+    .share-btn {
+      margin: 5px;
+      font-size: 0.9rem;
+    }
+
+    @media (max-width: 576px) {
+      .cert-body {
+        font-size: 0.95rem;
+      }
+      .cert-title {
+        font-size: 1.5rem;
+      }
+      .cert-subtitle {
+        font-size: 0.95rem;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- BOTONES SUPERIORES -->
+  <div class="share-section">
+    <p class="mb-1"><strong>Comparte tu participación:</strong></p>
+
+    <div class="text-center mb-3 text-muted" style="font-size: 0.95rem;">
+      Para compartir tu certificado en redes sociales, primero debes <strong>descargarlo como imagen</strong>. Luego podrás subirlo fácilmente a WhatsApp, Facebook, Instagram, TikTok u otra plataforma que prefieras.  
+      ¡Motiva a otros a participar también!
+    </div>
+
+    <button onclick="mostrarCertificadoComoImagen()" class="btn btn-outline-warning share-btn">👁️ Ver como imagen</button>
+    <button onclick="descargarImagen()" class="btn btn-outline-secondary share-btn">⬇️ Descargar</button>
+    <button onclick="window.print()" class="btn btn-outline-secondary share-btn">🖨️ Imprimir</button>
+    <a href="#" onclick="compartirWhatsApp()" class="btn btn-outline-success share-btn">WhatsApp</a>
+    <a href="https://www.facebook.com/" target="_blank" class="btn btn-outline-primary share-btn">Facebook</a>
+    <a href="https://www.instagram.com/" target="_blank" class="btn btn-outline-danger share-btn">Instagram</a>
+    <a href="https://www.tiktok.com/" target="_blank" class="btn btn-outline-dark share-btn">TikTok</a>
+  </div>
+
+  <!-- CERTIFICADO -->
+  <div class="cert-container" id="certificado">
+    <div class="bandera">
+      <div class="rojo"></div>
+      <div class="amarillo"></div>
+      <div class="verde"></div>
+    </div>
+
+    <div class="encabezado-logo">
+      <img src="/static/img/logo.png" alt="Logo El Bunker">
+    </div>
+
+    <div class="cert-title">Certificado de Participación</div>
+    <div class="cert-subtitle">Primarias Ciudadanas Bunker 2025</div>
+
+    <div class="cert-body">
+      <p>El presente documento certifica que un ciudadano boliviano ha participado activamente en el proceso democrático conocido como <strong>Primarias Bunker</strong>, ejerciendo su derecho a ser parte del cambio y de la construcción de un futuro más justo para Bolivia.</p>
+      <p>Con este acto de voluntad, se suma a la defensa de la democracia, el voto libre y la unidad de la ciudadanía comprometida con un país mejor.</p>
+      <p class="mt-4 text-center fw-bold">¡Gracias por formar parte de esta jornada histórica!</p>
+    </div>
+
+    <div class="cert-footer">
+      El Bunker<br>
+      Coordinación Nacional
+    </div>
+
+    <img src="/static/img/logo.png" alt="Sello de agua" class="seal">
+  </div>
+
+  <!-- MODAL DE PREVISUALIZACIÓN -->
+  <div id="previewModal" class="modal fade" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">Vista previa del certificado</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body text-center">
+          <img id="previewImage" src="" class="img-fluid" alt="Vista previa del certificado">
+        </div>
+        <div class="modal-footer">
+          <a id="descargarDesdeModal" href="#" class="btn btn-success" download="certificado.png">Descargar</a>
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SCRIPTS -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+  <script>
+    function mostrarCertificadoComoImagen() {
+      html2canvas(document.getElementById("certificado"), { scale: 2 }).then(canvas => {
+        const imagen = canvas.toDataURL("image/png");
+        document.getElementById("previewImage").src = imagen;
+        document.getElementById("descargarDesdeModal").href = imagen;
+        const modal = new bootstrap.Modal(document.getElementById('previewModal'));
+        modal.show();
+      });
+    }
+
+    function descargarImagen() {
+      html2canvas(document.getElementById("certificado"), { scale: 2 }).then(canvas => {
+        const imagen = canvas.toDataURL("image/png");
+        const enlace = document.createElement("a");
+        enlace.href = imagen;
+        enlace.download = "certificado_participacion.png";
+        enlace.click();
+      });
+    }
+
+    function compartirWhatsApp() {
+      const mensaje = encodeURIComponent("¡Yo ya participé en las Primarias Bunker 2025! 🇧🇴");
+      window.open(`https://wa.me/?text=${mensaje}`, '_blank');
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,22 @@
+votacion_web/
+│
+├── app.py                     ← Código principal en Flask
+├── Procfile                   ← Archivo sin extensión
+├── requirements.txt           ← Lista de dependencias
+│
+├── templates/                 ← Carpeta con los archivos HTML
+│   ├── votar.html
+│   ├── voto_exitoso.html
+│   ├── voto_ya_registrado.html
+│   ├── limite_ip.html
+│   └── generar_link.html
+│
+└── static/
+    └── img/
+        ├── logo.png
+        └── [imagenes de candidatos].png
+
+
+
+
+        agrega  5, 6, 7, 8,  9, 10

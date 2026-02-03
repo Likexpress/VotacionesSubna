@@ -1,0 +1,13 @@
+Flask
+gunicorn
+psycopg2-binary
+phonenumbers
+itsdangerous
+requests
+SQLAlchemy
+Flask_SQLAlchemy
+python-dotenv
+flask-migrate
+Flask-WTF
+
+

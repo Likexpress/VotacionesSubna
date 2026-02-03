@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Inicio de Votación</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <!-- Estilos -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+
+  <!-- Meta Description -->
+  <meta name="description" content="Vota en las Primarias Bolivia 2025. Tu voz define el futuro.">
+  <meta property="og:title" content="Elecciones Ciudadanas 2025" />
+  <meta property="og:description" content="Participa en las Primarias y elige al candidato de oposición que representará a Bolivia." />
+  <meta property="og:image" content="{{ request.host_url }}static/img/og-image.jpg" />
+  <meta property="og:url" content="{{ request.host_url }}generar_link" />
+  <meta property="og:type" content="website" />
+
+  <style>
+    body {
+      background-color: #f8f9fa;
+      padding-top: 60px;
+      font-family: Arial, sans-serif;
+    }
+    .card {
+      max-width: 500px;
+      margin: auto;
+      padding: 30px;
+      border-radius: 10px;
+      background: #fff;
+      box-shadow: 0 0 15px rgba(0,0,0,0.06);
+    }
+    .logo {
+      width: 150px;
+      margin-bottom: 20px;
+    }
+    footer {
+      text-align: center;
+      font-size: 0.9rem;
+      color: #777;
+      margin-top: 40px;
+    }
+    #loader {
+      position: fixed;
+      z-index: 9999;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      background: white;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      flex-direction: column;
+    }
+    #loader img {
+      width: 100px;
+      animation: pulse 1.5s infinite;
+    }
+    @keyframes pulse {
+      0% { transform: scale(1); opacity: 1; }
+      50% { transform: scale(1.1); opacity: 0.8; }
+      100% { transform: scale(1); opacity: 1; }
+    }
+    .select2-container--default .select2-selection--single {
+      height: 38px;
+      padding: 6px 12px;
+    }
+    .tutorial-buttons a {
+      margin-top: 10px;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Pantalla de carga -->
+  <div id="loader">
+    <img src="{{ url_for('static', filename='img/logo.png') }}" alt="Cargando...">
+    <p class="mt-3 text-muted">Cargando sistema de votación...</p>
+  </div>
+
+  <!-- Contenido principal -->
+  <div class="card text-center">
+    <div class="text-center mb-4">
+      <img src="{{ url_for('static', filename='img/logo.png') }}" alt="Logo Bunker" class="logo">
+    </div>
+
+    <h3><strong>¡Bienvenido a las Votaciones Primarias 2025!</strong></h3>
+    <p class="text-muted">Para comenzar, selecciona tu país e ingresa tu número de WhatsApp. Recuerda que solo puedes votar una vez por número.</p>
+
+    <!-- Aviso importante -->
+    <div class="alert alert-warning text-start" role="alert">
+      <strong>Importante para recibir tu enlace:</strong><br>
+      El número que ingreses aquí debe ser <strong>exactamente el mismo</strong> desde el cual escribirás el mensaje por WhatsApp.  
+      Si los números no coinciden, <strong>no se podrá generar tu enlace de votación</strong> por motivos de seguridad.<br><br>
+      Este proceso forma parte de un sistema <strong>transparente, seguro y ciudadano</strong>, donde cada voto cuenta de verdad.  
+      Tu participación no solo es un derecho: es una señal de esperanza, compromiso y cambio para Bolivia.
+    </div>
+
+    <form method="POST">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+      <div class="mb-3 text-start">
+        <label for="pais" class="form-label">País</label>
+        <select name="pais" id="pais" class="form-select" required>
+          <option value="">Selecciona un país</option>
+          {% for nombre, codigo in paises.items() %}
+            <option value="{{ codigo }}" {% if nombre == 'Bolivia' %}selected{% endif %}>{{ nombre }} ({{ codigo }})</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="mb-3 text-start">
+        <label for="numero" class="form-label">Número de WhatsApp</label>
+        <input type="tel" name="numero" id="numero" class="form-control" placeholder="Ej: 70000000"
+               required pattern="^\d{8,11}$" maxlength="11" inputmode="numeric">
+        <div class="form-text">Debe contener solo números (8 a 11 dígitos). No incluyas espacios ni guiones.</div>
+        <small id="previewNumero" class="form-text text-muted mt-1"></small>
+      </div>
+
+      <button id="submitBtn" type="submit" class="btn btn-success w-100">
+        Obtener enlace de votación
+      </button>
+    </form>
+
+    <!-- Botones de tutorial -->
+    <div class="tutorial-buttons mt-4">
+      <a href="https://www.youtube.com/watch?v=VIDEO_ID_TELEFONO" target="_blank" class="btn btn-outline-primary w-100">📱 Cómo votar desde tu teléfono</a>
+      <a href="https://www.youtube.com/watch?v=VIDEO_ID_PC" target="_blank" class="btn btn-outline-primary w-100">💻 Cómo votar desde tu computadora</a>
+    </div>
+
+    <a href="{{ url_for('preguntas_frecuentes') }}" class="btn btn-outline-secondary mt-3 w-100">Preguntas Frecuentes</a>
+  </div>
+
+  <footer class="mt-4">
+    &copy; 2025 Primarias Bunker<br>
+    <small>Participación ciudadana por un futuro democrático</small>
+  </footer>
+
+  <!-- Scripts -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+  <script>
+    // Ocultar pantalla de carga
+    window.addEventListener('load', function () {
+      document.getElementById('loader').style.display = 'none';
+    });
+
+    // Activar Select2
+    document.addEventListener('DOMContentLoaded', function () {
+      const select = document.getElementById('pais');
+      $(select).select2({
+        theme: "bootstrap-5",
+        placeholder: "Selecciona un país"
+      });
+    });
+
+    // Spinner y validación al enviar formulario
+    const form = document.querySelector("form");
+    const submitBtn = document.getElementById("submitBtn");
+
+    form.addEventListener("submit", function (e) {
+      const input = document.getElementById("numero");
+      let raw = input.value.normalize("NFKD").replace(/\D/g, '');
+
+      if (raw.length < 8) {
+        e.preventDefault();
+        alert("Por favor, ingresa un número válido de al menos 8 dígitos.");
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = "Obtener enlace de votación";
+        return;
+      }
+
+      input.value = raw;
+      submitBtn.disabled = true;
+      submitBtn.innerHTML = `<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Enviando...`;
+    });
+
+    // Limpieza en tiempo real del número ingresado
+    document.getElementById("numero").addEventListener("input", function () {
+      let raw = this.value.normalize("NFKD").replace(/\D/g, '');
+      if (raw.length > 11) raw = raw.slice(0, 11);
+      this.value = raw;
+      document.getElementById("previewNumero").innerText = raw ? "Número limpio: +" + raw : "";
+    });
+  </script>
+</body>
+</html>

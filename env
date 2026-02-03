@@ -1,0 +1,13 @@
+# Clave secreta para serializar tokens únicos
+SECRET_KEY=Likexpress-000
+
+# Conexión a la base de datos
+DATABASE_URL=postgresql://adminvoto:Likexpress-000@votaciondb.postgres.database.azure.com:5432/postgres
+
+# Token de acceso API WhatsApp 360dialog
+D360_ACCESS_TOKEN=DvY54vkC1Fu9dYn8zWzLZ9JOAK
+WABA_TOKEN=DvY54vkC1Fu9dYn8zWzLZ9JOAK
+
+RESET_DB_KEY=Likexpress-000
+
+DATABASE_URL=postgresql://adminvoto:Likexpress-000@votaciondb.postgres.database.azure.com:5432/postgres
