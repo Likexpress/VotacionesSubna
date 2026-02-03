@@ -303,8 +303,30 @@ def whatsapp_webhook():
             print("ℹ️ Webhook sin 'messages'; no hay nada que procesar.")
             return "ok", 200
 
+
         # Tomamos el primer mensaje
         msg = messages[0] or {}
+
+        # 1) Primero: número del remitente
+        numero_raw = msg.get('from') or msg.get('wa_id') or ""
+        numero_completo = limpiar_numero(numero_raw)
+
+        # 2) Luego: message_id
+        message_id = (msg.get("id") or "").strip()
+
+        # 3) Control de duplicados
+        if message_id:
+            ya = WhatsappMensajeProcesado.query.filter_by(message_id=message_id).first()
+            if ya:
+                print(f"ℹ️ Mensaje duplicado ignorado: {message_id}")
+                return "ok", 200
+
+            db.session.add(WhatsappMensajeProcesado(
+                message_id=message_id,
+                numero=numero_completo
+            ))
+            db.session.commit()
+
         message_id = (msg.get("id") or "").strip()
         if message_id:
             ya = WhatsappMensajeProcesado.query.filter_by(message_id=message_id).first()
