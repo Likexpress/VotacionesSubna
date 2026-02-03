@@ -417,8 +417,7 @@ def whatsapp_webhook():
 
         # Dominios coherentes
 # ====== Ya autorizado: generar token NUEVO y enviar enlace ======
-        APP_BASE_URL = os.environ.get("APP_BASE_URL", request.host_url.rstrip('/')).rstrip('/')
-
+        AZURE_DOMAIN = os.environ.get("AZURE_DOMAIN", request.host_url.rstrip('/')).rstrip('/')
 
         token_data = {
             "numero": numero_completo,
