@@ -129,13 +129,11 @@ def asegurar_candidatos_cargados():
 
 
 def limpiar_numero(numero_raw):
-    """Normaliza el número eliminando espacios, símbolos invisibles y caracteres no numéricos."""
-    # Elimina símbolos Unicode raros y normaliza el texto
+    """Devuelve SOLO dígitos. Ej: '59178194036' """
     numero = unicodedata.normalize("NFKD", str(numero_raw))
-    # Elimina todo lo que no sea dígito
     numero = re.sub(r"\D", "", numero)
-    # Asegura que tenga el prefijo +
-    return f"+{numero}"
+    return numero
+
 
 
 def enviar_mensaje_whatsapp(numero, mensaje):
@@ -205,6 +203,7 @@ print("📌 CANDIDATOS path:", CANDIDATOS_CSV_PATH)
 # Modelos
 # ---------------------------
 class Voto(db.Model):
+    __tablename__ = "votos"
     id = db.Column(db.Integer, primary_key=True)
     numero = db.Column(db.String(50), unique=True, nullable=False, index=True)
     genero = db.Column(db.String(10), nullable=False)
@@ -220,22 +219,20 @@ class Voto(db.Model):
     latitud = db.Column(db.Float, nullable=True)
     longitud = db.Column(db.Float, nullable=True)
     ip = db.Column(db.String(50), nullable=False)
-    fecha = db.Column(db.DateTime, default=datetime.utcnow)
-    
+    fecha = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
     candidato = db.Column(db.String(100), nullable=False)
     pregunta3 = db.Column(db.String(10), nullable=False)
     ci = db.Column(db.BigInteger, nullable=True)
 
 
-
-# ---------------------------
-# NumeroTemporal
-# ---------------------------
 class NumeroTemporal(db.Model):
+    __tablename__ = "numeros_temporales"
     id = db.Column(db.Integer, primary_key=True)
-    numero = db.Column(db.String(50), unique=True, nullable=False)
-    token = db.Column(db.Text, nullable=True)  # <--- Este campo debe existir
-    fecha = db.Column(db.DateTime, default=datetime.utcnow)
+    numero = db.Column(db.String(50), unique=True, nullable=False, index=True)
+    token = db.Column(db.Text, nullable=True)
+    fecha = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
 
 class WhatsappMensajeProcesado(db.Model):
     __tablename__ = "whatsapp_mensajes_procesados"
@@ -307,27 +304,14 @@ def whatsapp_webhook():
         # Tomamos el primer mensaje
         msg = messages[0] or {}
 
-        # 1) Primero: número del remitente
-        numero_raw = msg.get('from') or msg.get('wa_id') or ""
+        # 1) número del remitente
+        numero_raw = msg.get("from") or msg.get("wa_id") or ""
         numero_completo = limpiar_numero(numero_raw)
 
-        # 2) Luego: message_id
+        # 2) message_id
         message_id = (msg.get("id") or "").strip()
 
-        # 3) Control de duplicados
-        if message_id:
-            ya = WhatsappMensajeProcesado.query.filter_by(message_id=message_id).first()
-            if ya:
-                print(f"ℹ️ Mensaje duplicado ignorado: {message_id}")
-                return "ok", 200
-
-            db.session.add(WhatsappMensajeProcesado(
-                message_id=message_id,
-                numero=numero_completo
-            ))
-            db.session.commit()
-
-        message_id = (msg.get("id") or "").strip()
+        # 3) deduplicación (una sola vez)
         if message_id:
             ya = WhatsappMensajeProcesado.query.filter_by(message_id=message_id).first()
             if ya:
@@ -433,7 +417,8 @@ def whatsapp_webhook():
 
         # Dominios coherentes
 # ====== Ya autorizado: generar token NUEVO y enviar enlace ======
-        AZURE_DOMAIN = os.environ.get("AZURE_DOMAIN", request.host_url.rstrip('/')).rstrip('/')
+        APP_BASE_URL = os.environ.get("APP_BASE_URL", request.host_url.rstrip('/')).rstrip('/')
+
 
         token_data = {
             "numero": numero_completo,
