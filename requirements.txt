@@ -9,5 +9,6 @@ Flask_SQLAlchemy
 python-dotenv
 flask-migrate
 Flask-WTF
+pandas
 
 
