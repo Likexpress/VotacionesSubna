@@ -417,7 +417,8 @@ def whatsapp_webhook():
 
         # Dominios coherentes
 # ====== Ya autorizado: generar token NUEVO y enviar enlace ======
-        AZURE_DOMAIN = os.environ.get("APP_BASE_URL", request.host_url.rstrip('/')).rstrip('/')
+        AZURE_DOMAIN = (os.environ.get("AZURE_DOMAIN") or request.host_url.rstrip('/')).rstrip('/')
+
 
         token_data = {
             "numero": numero_completo,
@@ -563,12 +564,14 @@ def votar():
 
 
 
-        dominio_token = data.get("dominio")
-        dominio_esperado = os.environ.get("AZURE_DOMAIN")
+
+        dominio_token = (data.get("dominio") or "").rstrip("/")
+        dominio_esperado = (os.environ.get("AZURE_DOMAIN") or request.host_url.rstrip("/")).rstrip("/")
 
         # Validación de dominio
         if dominio_token != dominio_esperado:
             return "Dominio inválido para este enlace."
+
 
     except SignatureExpired:
         return "El enlace ha expirado. Solicita uno nuevo."
@@ -600,7 +603,8 @@ def votar():
 def enviar_voto():
 
     referer = request.headers.get("Referer", "")
-    dominio_permitido = os.environ.get("AZURE_DOMAIN", "votacionprimarias2025-g7ebaphpgrcucgbr.brazilsouth-01.azurewebsites.net")
+    dominio_permitido = os.environ.get("AZURE_DOMAIN", request.host_url.rstrip("/"))
+
 
     if referer and (dominio_permitido not in referer):
         return "Acceso no autorizado (referer inválido).", 403
@@ -786,7 +790,7 @@ def api_candidatos():
     provincia = None
     municipio = None
 
-    with open(archivo_recintos, encoding="utf-8") as f:
+    with open(archivo_recintos, encoding="utf-8-sig") as f:
         reader = csv.DictReader(f)
         for fila in reader:
             if fila["id_municipio"] == id_municipio:
@@ -808,7 +812,7 @@ def api_candidatos():
 
     candidatos = []
 
-    with open(archivo_candidatos, encoding="utf-8") as f:
+    with open(archivo_candidatos, encoding="utf-8-sig") as f:
         reader = csv.DictReader(f)
         for fila in reader:
             if (
