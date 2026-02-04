@@ -1,4 +1,4 @@
-# Página de preguntas frecuentes  2  
+# Página de preguntas frecuentes    
 from flask_sqlalchemy import SQLAlchemy
 from itsdangerous import URLSafeTimedSerializer, BadSignature, SignatureExpired
 from datetime import datetime
