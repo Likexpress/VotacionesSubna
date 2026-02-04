@@ -359,73 +359,55 @@ function actualizarMunicipios() {
   }
 
 async function cargarCandidatosPorMunicipio() {
-  const id_municipio = $('#municipio').val();
   const $cand = $('#candidato');
 
-  // 0) Si Select2 ya estaba activo, lo destruimos (para que no se quede "pegado")
+  // Destruir select2 si estaba activo
   if ($cand.hasClass("select2-hidden-accessible")) {
     $cand.select2('destroy');
   }
 
-  // 1) Borramos TODAS las opciones y también reseteamos el valor seleccionado
+  // Limpiar opciones
   $cand.empty().val(null);
 
-  // 2) Caso: aún no hay municipio seleccionado
-  if (!id_municipio) {
+  // Tomar textos reales seleccionados
+  const dep = $('#departamento').val();
+  const prov = $('#provincia').val();
+  const munNombre = $('#municipio option:selected').text(); // IMPORTANTE: nombre, no ID
+
+  // Si aún no hay municipio seleccionado (o quedó en placeholder)
+  if (!munNombre || munNombre.toLowerCase().includes("selecciona")) {
     $cand.append(new Option('Selecciona un municipio primero', ''));
-    // Reactivar Select2
     $cand.select2({ width: '100%' });
     return;
   }
 
   try {
-    // 3) Pedimos a tu backend los candidatos del municipio
-    const dep = $('#departamento').val();
-    const prov = $('#provincia').val();
+    const url =
+      `/api/candidatos?departamento=${encodeURIComponent(dep)}&provincia=${encodeURIComponent(prov)}&municipio=${encodeURIComponent(munNombre)}`;
 
-    const url = `/api/candidatos?id_municipio=${encodeURIComponent(id_municipio)}&departamento=${encodeURIComponent(dep)}&provincia=${encodeURIComponent(prov)}`;
-
-    const res = await fetch(url, { cache: "no-store" }); // evita cache del navegador
+    const res = await fetch(url, { cache: "no-store" });
     const data = await res.json();
 
-    // 4) Primer option (placeholder)
     $cand.append(new Option('Selecciona tu candidato', ''));
 
-    // 5) Si no hay datos
     if (!Array.isArray(data) || data.length === 0) {
       $cand.append(new Option('No hay candidatos para este municipio', ''));
     } else {
-      // 6) Cargamos opciones nuevas
       data.forEach(c => {
         const value = c.id_nombre_completo || c.nombre_completo;
         const label = `${c.nombre_completo} — ${c.organizacion_politica}`;
         $cand.append(new Option(label, value));
       });
     }
-
   } catch (e) {
     console.error(e);
     $cand.append(new Option('Error cargando candidatos', ''));
   }
 
-  // 7) Volvemos a activar Select2 y obligamos a que se refresque
   $cand.select2({ width: '100%' });
-
-  // 8) Muy importante: forzar que el select "empiece limpio"
   $cand.val('').trigger('change.select2');
 }
 
-  function mostrarCampoCI(select) {
-    const ciDiv = document.getElementById('campo_ci');
-    const ciInput = document.getElementById('ci');
-    if (select.value === 'Sí') {
-      ciDiv.classList.remove('hidden');
-      ciInput.required = true;
-    } else {
-      ciDiv.classList.add('hidden');
-      ciInput.required = false;
-    }
-  }
 
   $(document).ready(async () => {
     // Select2
@@ -443,12 +425,12 @@ async function cargarCandidatosPorMunicipio() {
     $('#departamento').on('change', actualizarProvincias);
     $('#provincia').on('change', actualizarMunicipios);
 
-    $('#municipio').on('change select2:select', () => {
+
+    $('#municipio').on('change', () => {
       setMunicipioNombreHidden();
       actualizarRecintos();
       cargarCandidatosPorMunicipio();
     });
-
 
 
 
