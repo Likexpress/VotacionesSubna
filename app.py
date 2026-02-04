@@ -1,4 +1,4 @@
-# Página de preguntas frecuentes    
+# Página de preguntas frecuentes  2  
 from flask_sqlalchemy import SQLAlchemy
 from itsdangerous import URLSafeTimedSerializer, BadSignature, SignatureExpired
 from datetime import datetime
@@ -231,8 +231,7 @@ class Voto(db.Model):
     gobernador = db.Column(db.String(150), nullable=True)
 
     candidato = db.Column(db.String(100), nullable=False)
-    pregunta3 = db.Column(db.String(10), nullable=False)
-    ci = db.Column(db.BigInteger, nullable=True)
+
 
 
 class NumeroTemporal(db.Model):
@@ -642,27 +641,17 @@ def enviar_voto():
     gobernador = request.form.get('gobernador')
 
     candidato = request.form.get('candidato')
-    pregunta3 = request.form.get('pregunta3')
-    ci = request.form.get('ci') or None
     latitud = request.form.get('latitud')
     longitud = request.form.get('longitud')
     ip = request.headers.get('X-Forwarded-For', request.remote_addr).split(',')[0].strip()
 
 
+
     if not all([genero, pais, departamento, provincia, municipio, id_municipio, recinto,
-                dia, mes, anio, candidato, pregunta3]):
-        return render_template("faltan_campos.html")
+                dia, mes, anio, candidato]):
 
 
 
-    if pregunta3 == "Sí" and not ci:
-        return "Debes ingresar tu CI si respondes que colaborarás en el control del voto.", 400
-
-    if ci:
-        try:
-            ci = int(ci)
-        except ValueError:
-            return "CI inválido.", 400
 
     if Voto.query.filter_by(numero=numero).first():
         return render_template("voto_ya_registrado.html")
@@ -684,9 +673,6 @@ def enviar_voto():
         latitud=float(latitud) if latitud else None,
         longitud=float(longitud) if longitud else None,
         ip=ip,
-        candidato=candidato,
-        pregunta3=pregunta3,
-        ci=ci
         
     )
 
