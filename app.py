@@ -774,63 +774,108 @@ def api_recintos():
 
 @app.route("/api/candidatos")
 def api_candidatos():
-    id_municipio = request.args.get("id_municipio")
-
+    id_municipio = (request.args.get("id_municipio") or "").strip()
     if not id_municipio:
         return jsonify([])
 
-    # 1️⃣ BUSCAR el municipio real en RecintosParaPrimaria.csv
-    archivo_recintos = os.path.join(
-        os.path.dirname(__file__),
-        "privado",
-        "RecintosParaPrimaria.csv"
-    )
+    # 1) Obtener (departamento, provincia, municipio) DESDE RecintosParaPrimaria.csv
+    archivo_recintos = os.path.join(os.path.dirname(__file__), "privado", "RecintosParaPrimaria.csv")
 
-    departamento = None
-    provincia = None
-    municipio = None
+    dep_norm = prov_norm = mun_norm = None
 
-    with open(archivo_recintos, encoding="utf-8-sig") as f:
-        reader = csv.DictReader(f)
-        for fila in reader:
-            if fila["id_municipio"] == id_municipio:
-                departamento = fila["nombre_departamento"].strip().lower()
-                provincia = fila["nombre_provincia"].strip().lower()
-                municipio = fila["nombre_municipio"].strip().lower()
-                break
-
-    # Si no se encontró el municipio
-    if not municipio:
+    try:
+        with open(archivo_recintos, encoding="utf-8-sig") as f:
+            reader = csv.DictReader(f)
+            for fila in reader:
+                # id_municipio en recintos (este es el único que el frontend conoce)
+                if str(fila.get("id_municipio", "")).strip() == id_municipio:
+                    dep_norm = _norm_text(fila.get("nombre_departamento"))
+                    prov_norm = _norm_text(fila.get("nombre_provincia"))
+                    mun_norm = _norm_text(fila.get("nombre_municipio"))
+                    break
+    except Exception as e:
+        print("❌ Error leyendo RecintosParaPrimaria.csv:", str(e))
         return jsonify([])
 
-    # 2️⃣ BUSCAR candidatos por departamento + provincia + municipio
-    archivo_candidatos = os.path.join(
-        os.path.dirname(__file__),
-        "privado",
-        "CandidatosPorMunicipio.csv"
-    )
+    if not (dep_norm and prov_norm and mun_norm):
+        print("⚠️ No se encontró municipio en RecintosParaPrimaria.csv para id_municipio:", id_municipio)
+        return jsonify([])
+
+    # 2) Buscar candidatos en CandidatosPorMunicipio.csv por TEXTO normalizado
+    archivo_candidatos = os.path.join(os.path.dirname(__file__), "privado", "CandidatosPorMunicipio.csv")
 
     candidatos = []
 
-    with open(archivo_candidatos, encoding="utf-8-sig") as f:
-        reader = csv.DictReader(f)
-        for fila in reader:
-            if (
-                fila["departamento"].strip().lower() == departamento and
-                fila["provincia"].strip().lower() == provincia and
-                fila["municipio"].strip().lower() == municipio and
-                fila["cargo"].strip().lower() == "alcalde"
-            ):
-                candidatos.append({
-                    "id_nombre_completo": fila["id_nombre_completo"],
-                    "nombre_completo": fila["nombre_completo"],
-                    "organizacion_politica": fila["organizacion_politica"],
-                    "id_organizacion_politica": fila["id_organizacion_politica"],
-                    "id_cargo": fila["id_cargo"],
-                    "cargo": fila["cargo"]
-                })
+    try:
+        with open(archivo_candidatos, encoding="utf-8-sig") as f:
+            reader = csv.DictReader(f)
+
+            # Mapeo flexible de nombres de columnas (por si tu CSV usa mayúsculas u otros nombres)
+            # Si una columna no existe, queda None.
+            fieldnames = [c or "" for c in (reader.fieldnames or [])]
+            cols = {c.strip().lower(): c for c in fieldnames}
+
+            col_dep = cols.get("departamento") or cols.get("depto.") or cols.get("depto") or cols.get("nombre_departamento")
+            col_prov = cols.get("provincia") or cols.get("nombre_provincia")
+            col_mun = cols.get("municipio") or cols.get("nombre_municipio")
+            col_cargo = cols.get("cargo") or cols.get("posicion") or cols.get("posición")
+
+            col_nombre = cols.get("nombre_completo") or cols.get("candidato") or cols.get("nombre completo")
+            col_org = cols.get("organizacion_politica") or cols.get("sigla") or cols.get("nombre del partido") or cols.get("partido")
+
+            col_id_nombre = cols.get("id_nombre_completo")  # opcional
+            col_id_org = cols.get("id_organizacion_politica")  # opcional
+            col_id_cargo = cols.get("id_cargo")  # opcional
+
+            # Si faltan columnas mínimas, log y salir con []
+            if not (col_mun and col_nombre and col_org):
+                print("❌ Columnas insuficientes en CandidatosPorMunicipio.csv")
+                print("   fieldnames:", reader.fieldnames)
+                return jsonify([])
+
+            for fila in reader:
+                # Normalizar textos para comparar
+                fila_dep = _norm_text(fila.get(col_dep)) if col_dep else ""
+                fila_prov = _norm_text(fila.get(col_prov)) if col_prov else ""
+                fila_mun = _norm_text(fila.get(col_mun))
+
+                # Cargo: aceptamos varias formas que contengan la palabra ALCALDE
+                fila_cargo = _norm_text(fila.get(col_cargo)) if col_cargo else ""
+
+                # Comparación:
+                # - Si tu CSV de candidatos tiene dep/prov, los comparamos.
+                # - Si NO los tiene, al menos comparamos por municipio.
+                ok_dep = (not col_dep) or (fila_dep == dep_norm)
+                ok_prov = (not col_prov) or (fila_prov == prov_norm)
+                ok_mun = (fila_mun == mun_norm)
+
+                ok_cargo = ("ALCALDE" in fila_cargo) if col_cargo else True  # si no hay columna cargo, no filtramos
+
+                if ok_dep and ok_prov and ok_mun and ok_cargo:
+                    nombre = (fila.get(col_nombre) or "").strip()
+                    org = (fila.get(col_org) or "").strip()
+
+                    if not nombre:
+                        continue
+
+                    candidatos.append({
+                        "id_nombre_completo": (fila.get(col_id_nombre) or "").strip() if col_id_nombre else nombre,
+                        "nombre_completo": nombre,
+                        "organizacion_politica": org,
+                        "id_organizacion_politica": (fila.get(col_id_org) or "").strip() if col_id_org else "",
+                        "id_cargo": (fila.get(col_id_cargo) or "").strip() if col_id_cargo else "",
+                        "cargo": (fila.get(col_cargo) or "").strip() if col_cargo else "Alcalde"
+                    })
+
+    except Exception as e:
+        print("❌ Error leyendo CandidatosPorMunicipio.csv:", str(e))
+        return jsonify([])
+
+    # Si quieres ver qué está pasando:
+    print(f"✅ Candidatos encontrados para {dep_norm} / {prov_norm} / {mun_norm}: {len(candidatos)}")
 
     return jsonify(candidatos)
+
 
 
 # ---------------------------
