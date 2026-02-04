@@ -1,4 +1,4 @@
-# Página de preguntas frecuentes    2
+# Página de preguntas frecuentes    
 from flask_sqlalchemy import SQLAlchemy
 from itsdangerous import URLSafeTimedSerializer, BadSignature, SignatureExpired
 from datetime import datetime
@@ -228,6 +228,7 @@ class Voto(db.Model):
     longitud = db.Column(db.Float, nullable=True)
     ip = db.Column(db.String(50), nullable=False)
     fecha = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    gobernador = db.Column(db.String(150), nullable=True)
 
     candidato = db.Column(db.String(100), nullable=False)
     pregunta3 = db.Column(db.String(10), nullable=False)
@@ -638,7 +639,8 @@ def enviar_voto():
     dia = request.form.get('dia_nacimiento')
     mes = request.form.get('mes_nacimiento')
     anio = request.form.get('anio_nacimiento')
-    
+    gobernador = request.form.get('gobernador')
+
     candidato = request.form.get('candidato')
     pregunta3 = request.form.get('pregunta3')
     ci = request.form.get('ci') or None
@@ -673,6 +675,8 @@ def enviar_voto():
         provincia=provincia,
         id_municipio=id_municipio,
         municipio=municipio,        # nombre
+        gobernador=gobernador,
+
         recinto=recinto,
         dia_nacimiento=int(dia),
         mes_nacimiento=int(mes),
@@ -846,6 +850,73 @@ def api_candidatos():
     print(f"✅ Candidatos encontrados para {dep_norm} / {prov_norm} / {mun_norm}: {len(candidatos)}")
     return jsonify(candidatos)
 
+
+
+@app.route("/api/gobernadores")
+def api_gobernadores():
+    # 1) Recibimos el departamento desde el navegador
+    departamento = request.args.get("departamento", "")
+    if not departamento:
+        print("❌ Falta parámetro departamento")
+        return jsonify([])
+
+    dep_norm = norm(departamento)
+
+    # 2) Ruta del CSV
+    archivo_gob = os.path.join(
+        os.path.dirname(__file__),
+        "privado",
+        "gobernaciones_por_departamento.csv"
+    )
+
+    # 3) Si el archivo no existe, devolvemos vacío
+    if not os.path.exists(archivo_gob):
+        print("❌ No existe el archivo:", archivo_gob)
+        return jsonify([])
+
+    gobernadores = []
+    vistos = set()  # evita duplicados
+
+    try:
+        with open(archivo_gob, encoding="utf-8-sig") as f:
+            reader = csv.DictReader(f)
+
+            # 4) Validar columnas mínimas del CSV
+            required = {"departamento", "cargo", "nombre_completo", "organizacion_politica"}
+            headers = set(reader.fieldnames or [])
+            faltantes = required - headers
+            if faltantes:
+                print("❌ Faltan columnas en gobernaciones_por_departamento.csv:", faltantes)
+                print("📌 Columnas detectadas:", reader.fieldnames)
+                return jsonify([])
+
+            # 5) Leer filas y filtrar por departamento + cargo gobernador
+            for fila in reader:
+                dep2 = norm(fila.get("departamento"))
+                cargo2 = norm(fila.get("cargo"))
+
+                if dep2 == dep_norm and ("gobernador" in cargo2):
+                    nombre = (fila.get("nombre_completo") or "").strip()
+                    org = (fila.get("organizacion_politica") or "").strip()
+                    if not nombre:
+                        continue
+
+                    key = (nombre, org)
+                    if key in vistos:
+                        continue
+                    vistos.add(key)
+
+                    gobernadores.append({
+                        "nombre_completo": nombre,
+                        "organizacion_politica": org
+                    })
+
+    except Exception as e:
+        print("❌ Error leyendo gobernaciones_por_departamento.csv:", str(e))
+        return jsonify([])
+
+    print(f"✅ Gobernadores encontrados para {dep_norm}: {len(gobernadores)}")
+    return jsonify(gobernadores)
 
 
 # ---------------------------
