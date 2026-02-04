@@ -165,14 +165,13 @@
 
         <!-- === Decisión Electoral (tarjetas con colores) === -->
         <div class="section-title">Decisión Electoral</div>
-
-        <div class="mb-3">
-          <label class="form-label">Candidato a Gobernador (según tu Departamento)</label>
-          <select id="gobernador" name="gobernador" class="form-select" required>
-            <option value="">Selecciona un departamento primero</option>
-          </select>
+        <div class="mb-2">
+          <label class="form-label">
+            ¿Por quién votarás el <strong>domingo 19 de octubre</strong> en esta
+            <strong>segunda vuelta</strong> de elecciones presidenciales?
+          </label>
+          <div class="note">Se vota por el <strong>Presidente</strong>. Se muestra el binomio para referencia.</div>
         </div>
-
 
         <div class="section-title">Candidato a Alcalde</div>
 
@@ -208,21 +207,27 @@
     </div>
   </div>
 
-
 <script>
   let recintosData = [];
 
   function resetSelect2(selector, texto) {
-    const $el = $(selector);
+  const $el = $(selector);
 
-    if ($el.hasClass('select2-hidden-accessible')) {
-      $el.select2('destroy');
-    }
-
-    $el.empty().append(new Option(texto, ''));
-    $el.select2({ width: '100%' });
-    $el.val('').trigger('change');
+  // Si Select2 está activo, lo apagamos
+  if ($el.hasClass('select2-hidden-accessible')) {
+    $el.select2('destroy');
   }
+
+  // Borramos opciones y ponemos 1 opción por defecto
+  $el.empty().append(new Option(texto, ''));
+
+  // Encendemos Select2 de nuevo
+  $el.select2({ width: '100%' });
+
+  // Dejamos el valor vacío
+  $el.val('').trigger('change');
+}
+
 
   async function cargarDatos() {
     const res = await fetch("/api/recintos");
@@ -234,6 +239,7 @@
 
     paises.forEach(p => $pais.append(new Option(p, p)));
 
+    // Default Bolivia si existe
     if (paises.includes('Bolivia')) {
       $pais.val('Bolivia').trigger('change');
     }
@@ -270,47 +276,57 @@
     $prov.trigger('change');
   }
 
-  function actualizarMunicipios() {
-    const pais = $('#pais').val();
-    const departamento = $('#departamento').val();
-    const provincia = $('#provincia').val();
+function actualizarMunicipios() {
+  const pais = $('#pais').val();
+  const departamento = $('#departamento').val();
+  const provincia = $('#provincia').val();
 
-    const filas = recintosData.filter(r =>
-      r.nombre_pais === pais &&
-      r.nombre_departamento === departamento &&
-      r.nombre_provincia === provincia
-    );
+  const filas = recintosData.filter(r =>
+    r.nombre_pais === pais &&
+    r.nombre_departamento === departamento &&
+    r.nombre_provincia === provincia
+  );
 
-    const mapa = new Map();
-    filas.forEach(r => {
-      const id = String(r.id_municipio || '');
-      const nombre = r.nombre_municipio;
-      if (id && nombre && !mapa.has(id)) {
-        mapa.set(id, nombre);
-      }
-    });
-
-    const $mun = $('#municipio');
-
-    if ($mun.hasClass('select2-hidden-accessible')) {
-      $mun.select2('destroy');
+  // Creamos lista única de municipios (id -> nombre)
+  const mapa = new Map();
+  filas.forEach(r => {
+    const id = String(r.id_municipio || '');
+    const nombre = r.nombre_municipio;
+    if (id && nombre && !mapa.has(id)) {
+      mapa.set(id, nombre);
     }
+  });
 
-    $mun.empty().append(new Option('Selecciona municipio', ''));
-    for (const [id, nombre] of mapa.entries()) {
-      $mun.append(new Option(nombre, id));
-    }
+  const $mun = $('#municipio');
 
-    $mun.select2({ width: '100%' });
-    $mun.val('').trigger('change');
-
-    resetSelect2('#recinto', 'Selecciona recinto');
-    resetSelect2('#candidato', 'Selecciona un municipio primero');
+  // 1) Apagar Select2 del municipio (para que no se quede pegado)
+  if ($mun.hasClass('select2-hidden-accessible')) {
+    $mun.select2('destroy');
   }
+
+  // 2) Vaciar y cargar municipios nuevos
+  $mun.empty().append(new Option('Selecciona municipio', ''));
+  for (const [id, nombre] of mapa.entries()) {
+    $mun.append(new Option(nombre, id));
+  }
+
+  // 3) Encender Select2 de nuevo
+  $mun.select2({ width: '100%' });
+
+  // 4) Forzar valor vacío
+  $mun.val('').trigger('change');
+
+  // 5) Resetear recintos y candidatos (porque dependen del municipio)
+  resetSelect2('#recinto', 'Selecciona recinto');
+  resetSelect2('#candidato', 'Selecciona un municipio primero');
+
+  setMunicipioNombreHidden();
+}
 
   function setMunicipioNombreHidden() {
     const select = document.getElementById('municipio');
     const hidden = document.getElementById('municipio_nombre');
+
     if (!select || !hidden) return;
 
     const selectedOption = select.options[select.selectedIndex];
@@ -322,6 +338,8 @@
     const departamento = $('#departamento').val();
     const provincia = $('#provincia').val();
     const id_municipio = $('#municipio').val();
+    console.log("ID municipio enviado a /api/candidatos:", id_municipio);
+
 
     const recintos = [...new Set(
       recintosData
@@ -340,125 +358,73 @@
     $rec.trigger('change');
   }
 
-  async function cargarCandidatosPorMunicipio() {
-    const id_municipio = $('#municipio').val();
-    const $cand = $('#candidato');
+async function cargarCandidatosPorMunicipio() {
+  const $cand = $('#candidato');
 
-    if ($cand.hasClass("select2-hidden-accessible")) {
-      $cand.select2('destroy');
-    }
+  // Destruir select2 si estaba activo
+  if ($cand.hasClass("select2-hidden-accessible")) {
+    $cand.select2('destroy');
+  }
 
-    $cand.empty().val(null);
+  // Limpiar opciones
+  $cand.empty().val(null);
 
-    if (!id_municipio) {
-      $cand.append(new Option('Selecciona un municipio primero', ''));
-      $cand.select2({ width: '100%' });
-      return;
-    }
+  // Tomar textos reales seleccionados
+  const dep = $('#departamento').val();
+  const prov = $('#provincia').val();
+  const munNombre = $('#municipio option:selected').text(); // IMPORTANTE: nombre, no ID
 
-    try {
-      const url = `/api/candidatos?id_municipio=${encodeURIComponent(id_municipio)}`;
-      const res = await fetch(url, { cache: "no-store" });
-      const data = await res.json();
-
-      $cand.append(new Option('Selecciona tu candidato', ''));
-
-      if (!Array.isArray(data) || data.length === 0) {
-        $cand.append(new Option('No hay candidatos para este municipio', ''));
-      } else {
-        data.forEach(c => {
-          const value = c.id_nombre_completo || c.nombre_completo;
-          const label = `${c.nombre_completo} — ${c.organizacion_politica}`;
-          $cand.append(new Option(label, value));
-        });
-      }
-    } catch (e) {
-      console.error(e);
-      $cand.append(new Option('Error cargando candidatos', ''));
-    }
-
+  // Si aún no hay municipio seleccionado (o quedó en placeholder)
+  if (!munNombre || munNombre.toLowerCase().includes("selecciona")) {
+    $cand.append(new Option('Selecciona un municipio primero', ''));
     $cand.select2({ width: '100%' });
-    $cand.val('').trigger('change.select2');
+    return;
   }
 
-  async function cargarGobernadoresPorDepartamento() {
-    const dep = $('#departamento').val();
-    const $gob = $('#gobernador');
+  try {
+    const url =
+      `/api/candidatos?departamento=${encodeURIComponent(dep)}&provincia=${encodeURIComponent(prov)}&municipio=${encodeURIComponent(munNombre)}`;
 
-    if ($gob.hasClass("select2-hidden-accessible")) {
-      $gob.select2('destroy');
+    const res = await fetch(url, { cache: "no-store" });
+    const data = await res.json();
+
+    $cand.append(new Option('Selecciona tu candidato', ''));
+
+    if (!Array.isArray(data) || data.length === 0) {
+      $cand.append(new Option('No hay candidatos para este municipio', ''));
+    } else {
+      data.forEach(c => {
+        const value = c.id_nombre_completo || c.nombre_completo;
+        const label = `${c.nombre_completo} — ${c.organizacion_politica}`;
+        $cand.append(new Option(label, value));
+      });
     }
-
-    $gob.empty().val(null);
-
-    if (!dep) {
-      $gob.append(new Option('Selecciona un departamento primero', ''));
-      $gob.select2({ width: '100%' });
-      return;
-    }
-
-    try {
-      const url = `/api/gobernadores?departamento=${encodeURIComponent(dep)}`;
-      const res = await fetch(url, { cache: "no-store" });
-      const data = await res.json();
-
-      $gob.append(new Option('Selecciona tu candidato', ''));
-
-      if (!Array.isArray(data) || data.length === 0) {
-        $gob.append(new Option('No hay candidatos para este departamento', ''));
-      } else {
-        data.forEach(c => {
-          const label = `${c.nombre_completo} — ${c.organizacion_politica}`;
-          const value = c.id_nombre_completo || c.nombre_completo;
-          $gob.append(new Option(label, value));
-        });
-      }
-
-    } catch (e) {
-      console.error(e);
-      $gob.append(new Option('Error cargando gobernadores', ''));
-    }
-
-    $gob.select2({ width: '100%' });
-    $gob.val('').trigger('change.select2');
+  } catch (e) {
+    console.error(e);
+    $cand.append(new Option('Error cargando candidatos', ''));
   }
+
+  $cand.select2({ width: '100%' });
+  $cand.val('').trigger('change.select2');
+}
+
 
   $(document).ready(async () => {
-    $('#pais').select2({ width: '100%' });
-    $('#departamento').select2({ width: '100%' });
-    $('#provincia').select2({ width: '100%' });
-    $('#municipio').select2({ width: '100%' });
-    $('#recinto').select2({ width: '100%' });
+    // Select2
+    $('#pais').select2();
+    $('#departamento').select2();
+    $('#provincia').select2();
+    $('#municipio').select2();
+    $('#recinto').select2();
     $('#candidato').select2({ width: '100%' });
-    $('#gobernador').select2({ width: '100%' });
 
-    $('#pais').on('change', () => {
-      resetSelect2('#departamento', 'Selecciona departamento');
-      resetSelect2('#provincia', 'Selecciona provincia');
-      resetSelect2('#municipio', 'Selecciona municipio');
-      resetSelect2('#recinto', 'Selecciona recinto');
-      resetSelect2('#candidato', 'Selecciona un municipio primero');
-      resetSelect2('#gobernador', 'Selecciona un departamento primero');
-      actualizarDepartamentos();
-    });
 
-    $('#departamento').on('change', () => {
-      resetSelect2('#provincia', 'Selecciona provincia');
-      resetSelect2('#municipio', 'Selecciona municipio');
-      resetSelect2('#recinto', 'Selecciona recinto');
-      resetSelect2('#candidato', 'Selecciona un municipio primero');
-      resetSelect2('#gobernador', 'Selecciona un departamento primero');
 
-      actualizarProvincias();
-      cargarGobernadoresPorDepartamento();
-    });
+    // Eventos encadenados
+    $('#pais').on('change', actualizarDepartamentos);
+    $('#departamento').on('change', actualizarProvincias);
+    $('#provincia').on('change', actualizarMunicipios);
 
-    $('#provincia').on('change', () => {
-      resetSelect2('#municipio', 'Selecciona municipio');
-      resetSelect2('#recinto', 'Selecciona recinto');
-      resetSelect2('#candidato', 'Selecciona un municipio primero');
-      actualizarMunicipios();
-    });
 
     $('#municipio').on('change', () => {
       setMunicipioNombreHidden();
@@ -466,9 +432,13 @@
       cargarCandidatosPorMunicipio();
     });
 
-    await cargarDatos();
 
-    // Geolocalización (aquí, simple y sin window.onload)
+
+    await cargarDatos();
+  });
+
+  // Geolocalización al cargar
+  window.onload = function () {
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         function (pos) {
@@ -480,15 +450,17 @@
         },
         { timeout: 10000 }
       );
+    } else {
+      console.warn("Geolocalización no soportada.");
     }
-  });
+  };
 
+  // Evitar múltiples envíos del formulario
   document.querySelector('form').addEventListener('submit', function () {
     const boton = this.querySelector('button[type="submit"]');
     boton.disabled = true;
     boton.innerText = 'Enviando...';
   });
 </script>
-
 </body>
 </html>
