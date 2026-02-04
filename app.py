@@ -27,8 +27,6 @@ from flask import request, jsonify
 # ---------------------------
 
 CANDIDATOS_CSV_PATH = os.path.join(os.path.dirname(__file__), "privado", "CandidatosPorMunicipio.csv")
-GOBERNADORES_CSV_PATH = os.path.join(os.path.dirname(__file__), "privado", "gobernaciones_por_departamento.csv")
-
 
 # Cache en memoria para no releer el CSV en cada request
 _CANDIDATOS_CACHE = {
@@ -229,7 +227,6 @@ class Voto(db.Model):
     longitud = db.Column(db.Float, nullable=True)
     ip = db.Column(db.String(50), nullable=False)
     fecha = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
-    gobernador = db.Column(db.String(120), nullable=False)
 
     candidato = db.Column(db.String(100), nullable=False)
     pregunta3 = db.Column(db.String(10), nullable=False)
@@ -640,7 +637,7 @@ def enviar_voto():
     dia = request.form.get('dia_nacimiento')
     mes = request.form.get('mes_nacimiento')
     anio = request.form.get('anio_nacimiento')
-    gobernador = request.form.get('gobernador')
+    
     candidato = request.form.get('candidato')
     pregunta3 = request.form.get('pregunta3')
     ci = request.form.get('ci') or None
@@ -649,11 +646,9 @@ def enviar_voto():
     ip = request.headers.get('X-Forwarded-For', request.remote_addr).split(',')[0].strip()
 
 
-
     if not all([genero, pais, departamento, provincia, municipio, id_municipio, recinto,
-                dia, mes, anio, candidato, gobernador, pregunta3]):
+                dia, mes, anio, candidato, pregunta3]):
         return render_template("faltan_campos.html")
-
 
 
 
@@ -677,8 +672,6 @@ def enviar_voto():
         provincia=provincia,
         id_municipio=id_municipio,
         municipio=municipio,        # nombre
-        gobernador=gobernador,
-
         recinto=recinto,
         dia_nacimiento=int(dia),
         mes_nacimiento=int(mes),
@@ -689,7 +682,6 @@ def enviar_voto():
         candidato=candidato,
         pregunta3=pregunta3,
         ci=ci
-
         
     )
 
@@ -785,40 +777,6 @@ def api_recintos():
     except Exception as e:
         print(f"Error al leer CSV recintos: {str(e)}")
         return "Error procesando los datos.", 500
-
-@app.route("/api/gobernadores")
-def api_gobernadores():
-    departamento = request.args.get("departamento")
-    if not departamento:
-        return jsonify([])
-
-    archivo = os.path.join(os.path.dirname(__file__), "privado", "gobernaciones_por_departamento.csv")
-
-    dep_norm = norm(departamento)
-    candidatos = []
-
-    try:
-        with open(archivo, encoding="utf-8-sig") as f:
-            reader = csv.DictReader(f)
-            for fila in reader:
-                dep2 = norm(fila.get("departamento"))
-                cargo2 = norm(fila.get("cargo"))
-
-                if dep2 == dep_norm and "gobernador" in cargo2:
-                    candidatos.append({
-                        "nombre_completo": (fila.get("nombre_completo") or "").strip(),
-                        "organizacion_politica": (fila.get("organizacion_politica") or "").strip(),
-                        "cargo": (fila.get("cargo") or "").strip(),
-                    })
-
-    except Exception as e:
-        print("❌ Error leyendo gobernaciones_por_departamento.csv:", str(e))
-        return jsonify([])
-
-    print(f"✅ Gobernadores encontrados para {departamento}: {len(candidatos)}")
-    return jsonify(candidatos)
-
-
 
 
 @app.route("/api/candidatos")
