@@ -1,4 +1,4 @@
-        <!-- Fecha de nacimiento -->
+        <!-- Fecha de nacimiento -->2
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -166,6 +166,7 @@
 
         <!-- === Decisión Electoral (tarjetas con colores) === -->
         <div class="section-title">Decisión Electoral</div>
+
         <div class="section-title">Candidato a Alcalde</div>
 
 <div class="mb-3">
@@ -174,23 +175,15 @@
     <option value="">Selecciona un municipio primero</option>
   </select>
 </div>
+<div class="section-title">Candidato a Gobernador</div>
+<div class="mb-3">
+  <label class="form-label">Selecciona tu candidato a gobernador</label>
+  <select id="gobernador" name="gobernador" class="form-select" required>
+    <option value="">Selecciona un departamento primero</option>
+  </select>
+</div>
 
 
-
-        <div class="section-title">Compromiso con la Democracia</div>
-        <div class="mb-3">
-          <label class="form-label">¿Estás dispuesto(a) a colaborar en el control del voto con el proyecto <strong>CUIDEMOS EL VOTO</strong>?</label>
-          <select id="pregunta3" name="pregunta3" class="form-select" required onchange="mostrarCampoCI(this)">
-            <option value="">Selecciona una opción</option>
-            <option value="Sí">Sí</option>
-            <option value="No">No</option>
-          </select>
-        </div>
-        <!-- Campo CI (condicional) -->
-        <div class="mb-3 hidden" id="campo_ci">
-          <label for="ci" class="form-label">Carnet de Identidad</label>
-          <input type="number" id="ci" name="ci" class="form-control">
-        </div>
 
         <!-- Botón de envío -->
         <div class="d-grid">
@@ -350,6 +343,48 @@ function actualizarMunicipios() {
     recintos.forEach(r => $rec.append(new Option(r, r)));
     $rec.trigger('change');
   }
+async function cargarGobernadoresPorDepartamento() {
+  const $gob = $('#gobernador');
+
+  if ($gob.hasClass("select2-hidden-accessible")) {
+    $gob.select2('destroy');
+  }
+
+  $gob.empty().val(null);
+
+  const dep = $('#departamento').val();
+  if (!dep) {
+    $gob.append(new Option('Selecciona un departamento primero', ''));
+    $gob.select2({ width: '100%' });
+    return;
+  }
+
+  try {
+    const url = `/api/gobernadores?departamento=${encodeURIComponent(dep)}`;
+    const res = await fetch(url, { cache: "no-store" });
+    const data = await res.json();
+
+    $gob.append(new Option('Selecciona tu candidato a gobernador', ''));
+
+    if (!Array.isArray(data) || data.length === 0) {
+      $gob.append(new Option('No hay candidatos a gobernador para este departamento', ''));
+    } else {
+      data.forEach(g => {
+        const label = `${g.nombre_completo} — ${g.organizacion_politica}`;
+        const value = `${g.nombre_completo} — ${g.organizacion_politica}`; // valor guardado
+        $gob.append(new Option(label, value));
+      });
+    }
+  } catch (e) {
+    console.error(e);
+    $gob.append(new Option('Error cargando gobernadores', ''));
+  }
+
+  $gob.select2({ width: '100%' });
+  $gob.val('').trigger('change.select2');
+}
+
+
 
 async function cargarCandidatosPorMunicipio() {
   const $cand = $('#candidato');
@@ -387,9 +422,11 @@ async function cargarCandidatosPorMunicipio() {
       $cand.append(new Option('No hay candidatos para este municipio', ''));
     } else {
       data.forEach(c => {
-        const value = c.id_nombre_completo || c.nombre_completo;
+
+        const value = c.nombre_completo;  // ahora se envía el NOMBRE
         const label = `${c.nombre_completo} — ${c.organizacion_politica}`;
         $cand.append(new Option(label, value));
+
       });
     }
   } catch (e) {
@@ -410,6 +447,16 @@ async function cargarCandidatosPorMunicipio() {
     $('#municipio').select2();
     $('#recinto').select2();
     $('#candidato').select2({ width: '100%' });
+    $('#gobernador').select2({ width: '100%' });
+    $('#departamento').on('change', () => {
+  actualizarProvincias(); // tu lógica ya hace esto
+  cargarGobernadoresPorDepartamento(); // nuevo
+  resetSelect2('#gobernador', 'Selecciona un departamento primero');
+});
+$('#pais').on('change', () => {
+  actualizarDepartamentos();
+  resetSelect2('#gobernador', 'Selecciona un departamento primero');
+});
 
 
 
