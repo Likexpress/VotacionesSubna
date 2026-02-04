@@ -36,6 +36,13 @@ _CANDIDATOS_CACHE = {
     "error": None
 }
 
+def norm(s):
+    s = (s or "").strip()
+    s = unicodedata.normalize("NFKD", s)
+    s = "".join(ch for ch in s if not unicodedata.combining(ch))
+    s = re.sub(r"\s+", " ", s)
+    return s.lower()
+
 
 def _norm_text(s: str) -> str:
     if s is None:
@@ -774,159 +781,69 @@ def api_recintos():
 
 @app.route("/api/candidatos")
 def api_candidatos():
-    id_municipio = request.args.get("id_municipio")
-    if not id_municipio:
+    # Recibimos textos desde el frontend
+    departamento = request.args.get("departamento", "")
+    provincia = request.args.get("provincia", "")
+    municipio = request.args.get("municipio", "")
+
+    if not (departamento and provincia and municipio):
+        print("❌ Faltan parámetros departamento/provincia/municipio")
         return jsonify([])
 
-    def norm(s):
-        s = (s or "").strip()
-        s = unicodedata.normalize("NFKD", s)
-        s = "".join(ch for ch in s if not unicodedata.combining(ch))  # quita acentos
-        s = re.sub(r"\s+", " ", s)  # compacta espacios
-        return s.lower()
+    dep_norm = norm(departamento)
+    prov_norm = norm(provincia)
+    mun_norm = norm(municipio)
 
-    # 1) Tomar depto/prov/mun (NOMBRES) desde RecintosParaPrimaria.csv usando id_municipio (de recintos)
-    archivo_recintos = os.path.join(os.path.dirname(__file__), "privado", "RecintosParaPrimaria.csv")
+    archivo_candidatos = os.path.join(
+        os.path.dirname(__file__),
+        "privado",
+        "CandidatosPorMunicipio.csv"
+    )
 
-    dep = prov = mun = None
-
-    try:
-        with open(archivo_recintos, encoding="utf-8-sig") as f:
-            reader = csv.DictReader(f)
-            fieldnames = [c or "" for c in (reader.fieldnames or [])]
-            cols = {c.strip().lower(): c for c in fieldnames}
-
-            col_id_mun = cols.get("id_municipio")
-            col_dep = cols.get("nombre_departamento") or cols.get("departamento")
-            col_prov = cols.get("nombre_provincia") or cols.get("provincia")
-            col_mun = cols.get("nombre_municipio") or cols.get("municipio")
-
-            if not (col_id_mun and col_dep and col_prov and col_mun):
-                print("❌ RecintosParaPrimaria.csv: columnas insuficientes:", reader.fieldnames)
-                return jsonify([])
-
-            for fila in reader:
-                if (fila.get(col_id_mun) or "").strip() == str(id_municipio).strip():
-                    dep = fila.get(col_dep)
-                    prov = fila.get(col_prov)
-                    mun = fila.get(col_mun)
-                    break
-
-    except Exception as e:
-        print("❌ Error leyendo RecintosParaPrimaria.csv:", str(e))
-        return jsonify([])
-
-    if not mun:
-        print("⚠️ No se encontró id_municipio en RecintosParaPrimaria.csv:", id_municipio)
-        return jsonify([])
-
-    dep_norm = norm(dep)
-    prov_norm = norm(prov)
-    mun_norm = norm(mun)
-
-    # 2) Buscar candidatos en CandidatosPorMunicipio.csv por nombres normalizados
-    archivo_candidatos = os.path.join(os.path.dirname(__file__), "privado", "CandidatosPorMunicipio.csv")
+    candidatos = []
+    vistos = set()  # para evitar duplicados exactos
 
     try:
         with open(archivo_candidatos, encoding="utf-8-sig") as f:
             reader = csv.DictReader(f)
 
-            fieldnames = [c or "" for c in (reader.fieldnames or [])]
-            cols = {c.strip().lower(): c for c in fieldnames}
-
-            col_dep2 = cols.get("departamento")
-            col_prov2 = cols.get("provincia")
-            col_mun2 = cols.get("municipio")
-            col_cargo2 = cols.get("cargo")
-
-            col_nombre = cols.get("nombre_completo")
-            col_org = cols.get("organizacion_politica")
-
-            col_id_nombre = cols.get("id_nombre_completo")
-            col_id_org = cols.get("id_organizacion_politica")
-            col_id_cargo = cols.get("id_cargo")
-
-            # Validación mínima
-            if not (col_dep2 and col_prov2 and col_mun2 and col_cargo2 and col_nombre and col_org):
-                print("❌ CandidatosPorMunicipio.csv: columnas insuficientes:", reader.fieldnames)
-                return jsonify([])
-
-            # Leemos todo una vez y lo normalizamos
-            rows = []
             for fila in reader:
-                fila_dep = norm(fila.get(col_dep2))
-                fila_prov = norm(fila.get(col_prov2))
-                fila_mun = norm(fila.get(col_mun2))
-                fila_cargo = norm(fila.get(col_cargo2))
-                rows.append((fila, fila_dep, fila_prov, fila_mun, fila_cargo))
+                dep2 = norm(fila.get("departamento"))
+                prov2 = norm(fila.get("provincia"))
+                mun2 = norm(fila.get("municipio"))
+                cargo2 = norm(fila.get("cargo"))
 
-            def build_result(fila):
-                nombre = (fila.get(col_nombre) or "").strip()
-                org = (fila.get(col_org) or "").strip()
-                if not nombre:
-                    return None
-                return {
-                    "id_nombre_completo": ((fila.get(col_id_nombre) or "").strip() if col_id_nombre else nombre),
-                    "nombre_completo": nombre,
-                    "organizacion_politica": org,
-                    "id_organizacion_politica": ((fila.get(col_id_org) or "").strip() if col_id_org else ""),
-                    "id_cargo": ((fila.get(col_id_cargo) or "").strip() if col_id_cargo else ""),
-                    "cargo": (fila.get(col_cargo2) or "Alcalde").strip()
-                }
-
-            def filtrar(modo):
-                out = []
-                for fila, d, p, m, c in rows:
-                    if "alcalde" not in c:
+                if (
+                    dep2 == dep_norm and
+                    prov2 == prov_norm and
+                    mun2 == mun_norm and
+                    ("alcalde" in cargo2)
+                ):
+                    nombre = (fila.get("nombre_completo") or "").strip()
+                    org = (fila.get("organizacion_politica") or "").strip()
+                    if not nombre:
                         continue
 
-                    if modo == 1:
-                        ok = (d == dep_norm and p == prov_norm and m == mun_norm)
-                    elif modo == 2:
-                        ok = (d == dep_norm and m == mun_norm)
-                    else:
-                        ok = (m == mun_norm)
+                    key = (nombre, org)
+                    if key in vistos:
+                        continue
+                    vistos.add(key)
 
-                    if ok:
-                        item = build_result(fila)
-                        if item:
-                            out.append(item)
-                return out
-
-            # 1) Estricto: dep+prov+mun
-            candidatos = filtrar(1)
-
-            # 2) Fallback: dep+mun
-            if not candidatos:
-                candidatos = filtrar(2)
-
-            # 3) Fallback final: solo mun
-            if not candidatos:
-                candidatos = filtrar(3)
-
-            # Eliminar duplicados por id_nombre_completo (por si se repite)
-            seen = set()
-            unicos = []
-            for c in candidatos:
-                key = (c.get("id_nombre_completo") or c.get("nombre_completo") or "").strip().lower()
-                if key and key not in seen:
-                    seen.add(key)
-                    unicos.append(c)
-
-            print(
-                f"✅ /api/candidatos id_municipio={id_municipio} "
-                f"dep='{dep_norm}' prov='{prov_norm}' mun='{mun_norm}' "
-                f"-> {len(unicos)} candidatos (con fallback)"
-            )
-
-            return jsonify(unicos)
+                    candidatos.append({
+                        "id_nombre_completo": (fila.get("id_nombre_completo") or "").strip() or nombre,
+                        "nombre_completo": nombre,
+                        "organizacion_politica": org,
+                        "id_organizacion_politica": (fila.get("id_organizacion_politica") or "").strip(),
+                        "id_cargo": (fila.get("id_cargo") or "").strip(),
+                        "cargo": (fila.get("cargo") or "").strip()
+                    })
 
     except Exception as e:
         print("❌ Error leyendo CandidatosPorMunicipio.csv:", str(e))
         return jsonify([])
 
-
-
+    print(f"✅ Candidatos encontrados para {dep_norm} / {prov_norm} / {mun_norm}: {len(candidatos)}")
+    return jsonify(candidatos)
 
 
 
