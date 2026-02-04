@@ -634,12 +634,14 @@ def enviar_voto():
     provincia = request.form.get('provincia')
     id_municipio = request.form.get('id_municipio')
     municipio = request.form.get('municipio_nombre')
+    if not municipio:
+        municipio = id_municipio  # fallback mínimo (mejor que falle)
+
     recinto = request.form.get('recinto')
     dia = request.form.get('dia_nacimiento')
     mes = request.form.get('mes_nacimiento')
     anio = request.form.get('anio_nacimiento')
     gobernador = request.form.get('gobernador')
-
     candidato = request.form.get('candidato')
     latitud = request.form.get('latitud')
     longitud = request.form.get('longitud')
@@ -647,14 +649,32 @@ def enviar_voto():
 
 
 
-    if not all([genero, pais, departamento, provincia, municipio, id_municipio, recinto,
-                dia, mes, anio, candidato]):
+
+
+    faltantes = []
+    if not genero: faltantes.append("genero")
+    if not pais: faltantes.append("pais")
+    if not departamento: faltantes.append("departamento")
+    if not provincia: faltantes.append("provincia")
+    if not id_municipio: faltantes.append("id_municipio")
+    if not municipio: faltantes.append("municipio_nombre")
+    if not recinto: faltantes.append("recinto")
+    if not dia: faltantes.append("dia_nacimiento")
+    if not mes: faltantes.append("mes_nacimiento")
+    if not anio: faltantes.append("anio_nacimiento")
+    if not candidato: faltantes.append("candidato")
+
+    if faltantes:
+        print("❌ Faltan campos:", faltantes)
+        return render_template("faltan_campos.html")
+
 
 
 
 
     if Voto.query.filter_by(numero=numero).first():
         return render_template("voto_ya_registrado.html")
+
 
     nuevo_voto = Voto(
         numero=numero,
@@ -673,8 +693,10 @@ def enviar_voto():
         latitud=float(latitud) if latitud else None,
         longitud=float(longitud) if longitud else None,
         ip=ip,
-        
+
+        candidato=candidato,
     )
+
 
     db.session.add(nuevo_voto)
     NumeroTemporal.query.filter_by(numero=numero).delete()
