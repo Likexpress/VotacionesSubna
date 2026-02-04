@@ -1,4 +1,4 @@
-        <!-- Fecha de nacimiento -->2
+        <!-- Fecha de nacimiento -->
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -182,6 +182,13 @@
     <option value="">Selecciona un municipio primero</option>
   </select>
 </div>
+<div class="section-title">Candidato a Gobernador</div>
+<div class="mb-3">
+  <label class="form-label">Selecciona tu candidato a gobernador</label>
+  <select id="gobernador" name="gobernador" class="form-select" required>
+    <option value="">Selecciona un departamento primero</option>
+  </select>
+</div>
 
 
 
@@ -358,6 +365,48 @@ function actualizarMunicipios() {
     recintos.forEach(r => $rec.append(new Option(r, r)));
     $rec.trigger('change');
   }
+async function cargarGobernadoresPorDepartamento() {
+  const $gob = $('#gobernador');
+
+  if ($gob.hasClass("select2-hidden-accessible")) {
+    $gob.select2('destroy');
+  }
+
+  $gob.empty().val(null);
+
+  const dep = $('#departamento').val();
+  if (!dep) {
+    $gob.append(new Option('Selecciona un departamento primero', ''));
+    $gob.select2({ width: '100%' });
+    return;
+  }
+
+  try {
+    const url = `/api/gobernadores?departamento=${encodeURIComponent(dep)}`;
+    const res = await fetch(url, { cache: "no-store" });
+    const data = await res.json();
+
+    $gob.append(new Option('Selecciona tu candidato a gobernador', ''));
+
+    if (!Array.isArray(data) || data.length === 0) {
+      $gob.append(new Option('No hay candidatos a gobernador para este departamento', ''));
+    } else {
+      data.forEach(g => {
+        const label = `${g.nombre_completo} — ${g.organizacion_politica}`;
+        const value = `${g.nombre_completo} — ${g.organizacion_politica}`; // valor guardado
+        $gob.append(new Option(label, value));
+      });
+    }
+  } catch (e) {
+    console.error(e);
+    $gob.append(new Option('Error cargando gobernadores', ''));
+  }
+
+  $gob.select2({ width: '100%' });
+  $gob.val('').trigger('change.select2');
+}
+
+
 
 async function cargarCandidatosPorMunicipio() {
   const $cand = $('#candidato');
@@ -418,6 +467,16 @@ async function cargarCandidatosPorMunicipio() {
     $('#municipio').select2();
     $('#recinto').select2();
     $('#candidato').select2({ width: '100%' });
+    $('#gobernador').select2({ width: '100%' });
+    $('#departamento').on('change', () => {
+  actualizarProvincias(); // tu lógica ya hace esto
+  cargarGobernadoresPorDepartamento(); // nuevo
+  resetSelect2('#gobernador', 'Selecciona un departamento primero');
+});
+$('#pais').on('change', () => {
+  actualizarDepartamentos();
+  resetSelect2('#gobernador', 'Selecciona un departamento primero');
+});
 
 
 
