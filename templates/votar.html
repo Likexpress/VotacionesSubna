@@ -437,9 +437,11 @@ async function cargarCandidatosPorMunicipio() {
       $cand.append(new Option('No hay candidatos para este municipio', ''));
     } else {
       data.forEach(c => {
-        const value = c.id_nombre_completo || c.nombre_completo;
+
+        const value = c.nombre_completo;  // ahora se envía el NOMBRE
         const label = `${c.nombre_completo} — ${c.organizacion_politica}`;
         $cand.append(new Option(label, value));
+
       });
     }
   } catch (e) {
