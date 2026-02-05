@@ -663,11 +663,7 @@ def enviar_voto():
 
 
 
-    if ci:
-        try:
-            ci = int(ci)
-        except ValueError:
-            return "CI inválido.", 400
+
 
     if Voto.query.filter_by(numero=numero).first():
         return render_template("voto_ya_registrado.html")
