@@ -1,4 +1,4 @@
-# Página de preguntas frecuentes  2  
+# Página de preguntas frecuentes    
 from flask_sqlalchemy import SQLAlchemy
 from itsdangerous import URLSafeTimedSerializer, BadSignature, SignatureExpired
 from datetime import datetime
@@ -231,7 +231,8 @@ class Voto(db.Model):
     gobernador = db.Column(db.String(150), nullable=True)
 
     candidato = db.Column(db.String(100), nullable=False)
-
+    pregunta3 = db.Column(db.String(10), nullable=False)
+    ci = db.Column(db.BigInteger, nullable=True)
 
 
 class NumeroTemporal(db.Model):
@@ -634,47 +635,37 @@ def enviar_voto():
     provincia = request.form.get('provincia')
     id_municipio = request.form.get('id_municipio')
     municipio = request.form.get('municipio_nombre')
-    if not municipio:
-        municipio = id_municipio  # fallback mínimo (mejor que falle)
-
     recinto = request.form.get('recinto')
     dia = request.form.get('dia_nacimiento')
     mes = request.form.get('mes_nacimiento')
     anio = request.form.get('anio_nacimiento')
     gobernador = request.form.get('gobernador')
+
     candidato = request.form.get('candidato')
+    pregunta3 = request.form.get('pregunta3')
+    ci = request.form.get('ci') or None
     latitud = request.form.get('latitud')
     longitud = request.form.get('longitud')
     ip = request.headers.get('X-Forwarded-For', request.remote_addr).split(',')[0].strip()
 
 
-
-
-
-    faltantes = []
-    if not genero: faltantes.append("genero")
-    if not pais: faltantes.append("pais")
-    if not departamento: faltantes.append("departamento")
-    if not provincia: faltantes.append("provincia")
-    if not id_municipio: faltantes.append("id_municipio")
-    if not municipio: faltantes.append("municipio_nombre")
-    if not recinto: faltantes.append("recinto")
-    if not dia: faltantes.append("dia_nacimiento")
-    if not mes: faltantes.append("mes_nacimiento")
-    if not anio: faltantes.append("anio_nacimiento")
-    if not candidato: faltantes.append("candidato")
-
-    if faltantes:
-        print("❌ Faltan campos:", faltantes)
+    if not all([genero, pais, departamento, provincia, municipio, id_municipio, recinto,
+                dia, mes, anio, candidato, pregunta3]):
         return render_template("faltan_campos.html")
 
 
 
+    if pregunta3 == "Sí" and not ci:
+        return "Debes ingresar tu CI si respondes que colaborarás en el control del voto.", 400
 
+    if ci:
+        try:
+            ci = int(ci)
+        except ValueError:
+            return "CI inválido.", 400
 
     if Voto.query.filter_by(numero=numero).first():
         return render_template("voto_ya_registrado.html")
-
 
     nuevo_voto = Voto(
         numero=numero,
@@ -693,10 +684,11 @@ def enviar_voto():
         latitud=float(latitud) if latitud else None,
         longitud=float(longitud) if longitud else None,
         ip=ip,
-
         candidato=candidato,
+        pregunta3=pregunta3,
+        ci=ci
+        
     )
-
 
     db.session.add(nuevo_voto)
     NumeroTemporal.query.filter_by(numero=numero).delete()
